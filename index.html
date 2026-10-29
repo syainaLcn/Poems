@@ -62,13 +62,13 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 .modal-head{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:15px;height:52px;padding:0 10px 0 20px;background:var(--grad-night);border-bottom:1px solid #363819;box-shadow:0 4px 15px #0005}
 .modal-head .eyebrow{font-size:10px;letter-spacing:.16em}
 .modal-head h2{margin:0;font:600 18px var(--font-serif);letter-spacing:.08em;color:#efe9d0}
-.close{flex-shrink:0;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:#efe9d0;font-size:24px;line-height:1;cursor:pointer}
-.close:hover{background:var(--grad-gold);color:var(--night-accent-ink)}
+.close{flex-shrink:0;width:44px;height:44px;border:0;border-radius:0;background:transparent;color:#efe9d0;font-size:30px;line-height:1;cursor:pointer;outline:none;-webkit-tap-highlight-color:transparent}
+.close:hover{background:transparent;color:#b5803f}
 .modal-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:20px 28px 22px;background:var(--grad-card);font-family:var(--font-serif);font-size:18px;line-height:1.7;color:#e9e4cb}
 #mText{flex:1;min-height:0;overflow:auto;column-gap:2.4em}
 .stanza{margin:0 0 1em;white-space:pre-line;overflow-wrap:anywhere;break-inside:avoid}
 .stanza:last-of-type{margin-bottom:0}
-.byline{flex:none;margin-top:.8em;font:italic 1em/1.2 'Playfair Display',serif;text-align:right;color:var(--night-label)}
+.byline{flex:none;margin-top:.8em;font:italic clamp(12px,.75em,18px)/1.2 'Playfair Display',serif;text-align:right;color:var(--night-label)}
 
 @media (max-width:640px){
   dialog#modal{width:min(94vw,88vh);width:min(94vw,88dvh);aspect-ratio:1/1}
