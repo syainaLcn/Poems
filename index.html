@@ -56,7 +56,7 @@ textarea{min-height:230px;resize:vertical;font:italic 18px/1.7 var(--font-serif)
 
 footer{padding:23px 14px;background:linear-gradient(180deg,#141b0b 0%,#050902 100%);font-size:10px;letter-spacing:.14em;text-align:center;color:#d9d3b4}
 
-dialog#modal{width:min(720px,calc(100% - 22px));max-height:88vh;padding:0;overflow:hidden;background:#141b0b;border:1px solid #8a7a3e;border-radius:20px;box-shadow:0 20px 65px #000a,inset 0 0 0 1px #c9b87f1f;color:var(--night-text)}
+dialog#modal{width:min(94vw,920px,117vh);aspect-ratio:4/3;padding:0;overflow:hidden;background:#141b0b;border:1px solid #8a7a3e;border-radius:20px;box-shadow:0 20px 65px #000a,inset 0 0 0 1px #c9b87f1f;color:var(--night-text)}
 dialog#modal[open]{display:flex;flex-direction:column}
 dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 .modal-head{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:15px;height:52px;padding:0 10px 0 20px;background:var(--grad-night);border-bottom:1px solid #363819;box-shadow:0 4px 15px #0005}
@@ -64,16 +64,21 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 .modal-head h2{margin:0;font:700 11px var(--font-ui);letter-spacing:.07em;text-transform:uppercase;color:#efe9d0}
 .close{flex-shrink:0;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:#efe9d0;font-size:24px;line-height:1;cursor:pointer}
 .close:hover{background:var(--grad-gold);color:var(--night-accent-ink)}
-.modal-body{flex:1;min-height:0;overflow:auto;padding:1.3em 1.5em 1.5em;background:var(--grad-card);font-family:var(--font-serif);font-size:18px;line-height:1.8;color:#e9e4cb}
-.stanza{margin:0 0 1.2em;white-space:pre-line;overflow-wrap:anywhere}
+.modal-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:20px 28px 22px;background:var(--grad-card);font-family:var(--font-serif);font-size:18px;line-height:1.7;color:#e9e4cb}
+#mText{flex:1;min-height:0;overflow:auto;column-gap:2.4em}
+.stanza{margin:0 0 1em;white-space:pre-line;overflow-wrap:anywhere;break-inside:avoid}
 .stanza:last-of-type{margin-bottom:0}
-.byline{margin-top:1.3em;font:italic 1em/1.2 'Playfair Display',serif;text-align:right;color:var(--night-label)}
+.byline{flex:none;margin-top:.8em;font:italic 1em/1.2 'Playfair Display',serif;text-align:right;color:var(--night-label)}
 
+@media (max-width:640px){
+  dialog#modal{width:min(94vw,88vh);aspect-ratio:1/1}
+  .modal-body{padding:16px 18px 18px}
+}
 @media (max-width:480px){
   .hero p{font-size:16px}
   .row{grid-template-columns:1fr}
   .composer{padding:20px 18px}
-  dialog#modal{width:calc(100% - 20px);border-radius:17px}
+  dialog#modal{border-radius:17px}
 }
 </style>
 </head>
@@ -115,7 +120,7 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 <script>
 const $ = (id) => document.getElementById(id);
 const modal = $('modal'), body = $('mBody');
-const MIN = 13, MAX = 30;
+const MIN = 10, MAX = 30;
 
 function stanzas(text){
   return text.replace(/\r/g,'').trim().split(/\n\s*\n/).map((block) => {
@@ -128,17 +133,26 @@ function stanzas(text){
 
 function fit(){
   if (!modal.open) return;
-  const avail = window.innerHeight * 0.88 - $('mBody').previousElementSibling.offsetHeight;
-  body.style.flex = 'none';
-  body.style.maxHeight = avail + 'px';
-  let lo = MIN, hi = MAX;
-  while (hi - lo > 0.25){
-    const mid = (lo + hi) / 2;
-    body.style.fontSize = mid + 'px';
-    if (body.scrollHeight <= body.clientHeight + 1) lo = mid; else hi = mid;
+  const t = $('mText');
+  const fits = () => t.scrollHeight <= t.clientHeight + 1 && t.scrollWidth <= t.clientWidth + 1;
+  const maxCols = t.clientWidth >= 800 ? 3 : t.clientWidth >= 560 ? 2 : 1;
+  let best = null;
+  for (let c = 1; c <= maxCols; c++){
+    t.style.columnCount = c === 1 ? 'auto' : c;
+    body.style.fontSize = MIN + 'px';
+    if (!fits()) continue;
+    let lo = MIN, hi = MAX;
+    while (hi - lo > 0.25){
+      const mid = (lo + hi) / 2;
+      body.style.fontSize = mid + 'px';
+      if (fits()) lo = mid; else hi = mid;
+    }
+    if (!best || lo > best.size * 1.12) best = { size: lo, cols: c };
   }
-  body.style.fontSize = lo + 'px';
-  body.scrollTop = 0;
+  if (!best) best = { size: 14, cols: 1 };
+  t.style.columnCount = best.cols === 1 ? 'auto' : best.cols;
+  body.style.fontSize = best.size + 'px';
+  t.scrollTop = 0;
 }
 
 function openPoem(){
