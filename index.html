@@ -302,7 +302,7 @@ async function saveCard(){
   } finally { btn.disabled = false; }
 }
 
-/* ---- Save video (intro + lyrics + outro) ---- */
+/* ---- Save video (lyrics + simple fade in / fade out) ---- */
 const vopts = { lyrics: 'line' };
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const ease = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
@@ -329,44 +329,6 @@ function drawBackdrop(c, W, H, t, parts){
   });
 }
 
-function centerText(c, str, x, y, font, color, spacing){
-  c.font = font; c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.letterSpacing = spacing || '0px';
-  c.fillText(str, x, y);
-}
-
-function drawIntro(c, W, H, t, a, info){
-  const k = clamp01(t / 2.6);
-  c.save(); c.globalAlpha = a; c.translate(W / 2, H / 2); c.scale(1 + .05 * k, 1 + .05 * k); c.translate(-W / 2, -H / 2);
-  const bs = W * .078;
-  c.save(); c.globalAlpha = a * ease(t / .9);
-  centerText(c, 'Forest of Words', W / 2, H * .46 - (1 - ease(t / .9)) * H * .02, 'italic 500 ' + bs + 'px "Cormorant Garamond", Georgia, serif', '#f4ecc9', '-0.01em');
-  c.restore();
-  const lw = W * .09 * ease((t - .5) / .9);
-  const lg = c.createLinearGradient(W / 2 - lw, 0, W / 2 + lw, 0);
-  lg.addColorStop(0, '#e6d9a6'); lg.addColorStop(.5, '#c9b87f'); lg.addColorStop(1, '#aa976c');
-  c.fillStyle = lg; c.fillRect(W / 2 - lw / 2, H * .46 + bs * .72, lw, Math.max(2, W * .0025));
-  c.save(); c.globalAlpha = a * ease((t - 1) / .8);
-  centerText(c, info.sub, W / 2, H * .46 + bs * 1.5, '600 ' + Math.max(12, W * .016) + 'px "DM Sans", sans-serif', '#cdbf8c', '0.28em');
-  c.restore(); c.restore();
-}
-
-function drawOutro(c, W, H, t, a, info){
-  const bs = W * .06;
-  c.save(); c.globalAlpha = a; c.translate(W / 2, H / 2); c.scale(.985 + .015 * ease(t / 1.4), .985 + .015 * ease(t / 1.4)); c.translate(-W / 2, -H / 2);
-  c.save(); c.globalAlpha = a * ease(t / .8);
-  centerText(c, '— ' + info.author, W / 2, H * .45, 'italic 500 ' + bs + 'px "Playfair Display", Georgia, serif', '#f4ecc9', '0px');
-  c.restore();
-  const lw = W * .08 * ease((t - .4) / .8);
-  const lg = c.createLinearGradient(W / 2 - lw, 0, W / 2 + lw, 0);
-  lg.addColorStop(0, '#e6d9a6'); lg.addColorStop(.5, '#c9b87f'); lg.addColorStop(1, '#aa976c');
-  c.fillStyle = lg; c.fillRect(W / 2 - lw / 2, H * .45 + bs * .85, lw, Math.max(2, W * .0025));
-  c.save(); c.globalAlpha = a * ease((t - .8) / .8);
-  centerText(c, 'FOREST OF WORDS', W / 2, H * .45 + bs * 1.75, 'italic 500 ' + W * .036 + 'px "Cormorant Garamond", Georgia, serif', '#cdbf8c', '0.12em');
-  centerText(c, 'A POETRY COLLECTION', W / 2, H * .45 + bs * 2.5, '600 ' + Math.max(10, W * .0125) + 'px "DM Sans", sans-serif', '#9a9b7e', '0.3em');
-  c.restore(); c.restore();
-}
-
 async function saveVideo(sec){
   if (!window.MediaRecorder) { alert('Hindi supported ng browser na ito ang video recording.'); return; }
   const vb = $('saveVid'), label = vb.textContent;
@@ -383,14 +345,8 @@ async function saveVideo(sec){
     const W = full.width & ~1, H = full.height & ~1;
     const out = document.createElement('canvas'); out.width = W; out.height = H;
     const c = out.getContext('2d');
-    const n = parseInt($('num').value, 10);
-    const info = {
-      author: ($('author').value.trim() || 'Shaina').toLowerCase(),
-      sub: n > 0 ? 'POEM ' + String(n).padStart(3, '0') : 'A POEM'
-    };
     const parts = makeParticles(34);
-    const intro = Math.min(2.6, sec * .25), outro = Math.min(3, sec * .3);
-    const poemStart = intro - .5, poemEnd = sec - outro + .5;
+    const FADE = Math.min(1.2, sec * .15);
     const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
     const mime = types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
     const rec = new MediaRecorder(out.captureStream(30), mime ? { mimeType: mime, videoBitsPerSecond: 6000000 } : undefined);
@@ -399,26 +355,17 @@ async function saveVideo(sec){
     const done = new Promise((res) => { rec.onstop = res; });
     const draw = (t) => {
       drawBackdrop(c, W, H, t, parts);
-      /* intro */
-      if (t < intro + .1) drawIntro(c, W, H, t, Math.min(ease(t / .6), 1 - ease((t - (intro - .6)) / .7)), info);
-      /* poem */
-      if (t > poemStart && t < poemEnd) {
-        if (lyrics && total) {
-          const p = clamp01((t - intro - .2) / Math.max(1, (sec - outro - intro) * .85));
-          const k = Math.ceil(p * total);
-          if (k !== shown) { shown = k; src = buildCardCanvas(2, k); }
-        }
-        const a = Math.min(ease((t - poemStart) / .7), 1 - ease((t - (poemEnd - .7)) / .7));
-        const z = .965 + .035 * clamp01((t - poemStart) / (poemEnd - poemStart));
-        c.save(); c.globalAlpha = a; c.translate(W / 2, H / 2); c.scale(z, z);
-        c.drawImage(src, -W / 2, -H / 2, W, H); c.restore();
+      if (lyrics && total) {
+        const p = clamp01((t - .3) / Math.max(1, (sec - FADE - .3) * .85));
+        const k = Math.ceil(p * total);
+        if (k !== shown) { shown = k; src = buildCardCanvas(2, k); }
       }
-      /* outro */
-      const os = sec - outro;
-      if (t > os) drawOutro(c, W, H, t - os, Math.min(ease((t - os) / .7), 1 - ease((t - (sec - .9)) / .9)), info);
-      /* final fade to black */
-      const fb = ease((t - (sec - .6)) / .6);
-      if (fb > 0) { c.globalAlpha = fb; c.fillStyle = '#050902'; c.fillRect(0, 0, W, H); c.globalAlpha = 1; }
+      const z = .965 + .035 * clamp01(t / sec);
+      c.save(); c.translate(W / 2, H / 2); c.scale(z, z);
+      c.drawImage(src, -W / 2, -H / 2, W, H); c.restore();
+      /* fade in / fade out (via black overlay) */
+      const fa = 1 - Math.min(ease(t / FADE), ease((sec - t) / FADE));
+      if (fa > 0) { c.globalAlpha = fa; c.fillStyle = '#050902'; c.fillRect(0, 0, W, H); c.globalAlpha = 1; }
     };
     draw(0); rec.start();
     const t0 = performance.now();
