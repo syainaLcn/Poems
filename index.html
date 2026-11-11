@@ -56,8 +56,12 @@ textarea{min-height:230px;resize:vertical;font:italic 18px/1.7 var(--font-serif)
 
 footer{padding:23px 14px;background:linear-gradient(180deg,#141b0b 0%,#050902 100%);font-size:10px;letter-spacing:.14em;text-align:center;color:#d9d3b4}
 
-dialog#modal{width:min(94vw,920px,117vh);width:min(94vw,920px,117dvh);aspect-ratio:4/3;padding:0;overflow:hidden;background:#141b0b;border:1px solid #8a7a3e;border-radius:20px;box-shadow:0 20px 65px #000a,inset 0 0 0 1px #c9b87f1f;color:var(--night-text)}
-dialog#modal[open]{display:flex;flex-direction:column}
+dialog#modal{width:min(94vw,920px,100vh);width:min(94vw,920px,100dvh);max-width:none;max-height:none;aspect-ratio:4/3;padding:0;overflow:visible;background:transparent;border:0;color:var(--night-text)}
+dialog#modal[open]{display:block}
+.card{position:relative;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;background:#141b0b;border:1px solid #8a7a3e;border-radius:20px;box-shadow:0 20px 65px #000a,inset 0 0 0 1px #c9b87f1f}
+.save{position:absolute;right:0;bottom:calc(100% + 10px);padding:9px 18px;border:1px solid #c9b87f;border-radius:24px;background:var(--grad-gold);color:var(--night-accent-ink);font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;box-shadow:0 4px 14px #0007}
+.save:hover{filter:brightness(1.1)}
+.save:disabled{opacity:.6;cursor:wait}
 dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 .modal-head{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:15px;height:52px;padding:0 10px 0 20px;background:var(--grad-night);border-bottom:1px solid #363819;box-shadow:0 4px 15px #0005}
 .modal-head .eyebrow{font-size:10px;letter-spacing:.16em}
@@ -71,7 +75,7 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 .byline{flex:none;margin-top:.8em;font:italic clamp(12px,.75em,18px)/1.2 'Playfair Display',serif;text-align:right;color:var(--night-label)}
 
 @media (max-width:640px){
-  dialog#modal{width:min(94vw,88vh);width:min(94vw,88dvh);aspect-ratio:1/1}
+  dialog#modal{width:min(94vw,76vh);width:min(94vw,76dvh);aspect-ratio:1/1}
   .modal-head{height:40px;padding:0 6px 0 16px}
   .modal-body{padding:12px 16px 14px}
   .byline{margin-top:.5em}
@@ -80,7 +84,7 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
   .hero p{font-size:16px}
   .row{grid-template-columns:1fr}
   .composer{padding:20px 18px}
-  dialog#modal{border-radius:17px}
+  .card{border-radius:17px}
 }
 </style>
 </head>
@@ -112,11 +116,14 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 <footer>FOREST OF WORDS · A POETRY COLLECTION</footer>
 
 <dialog id="modal">
-  <div class="modal-head">
-    <div><h2 id="mTitle"></h2></div>
-    <button class="close" id="close" type="button" aria-label="Close">×</button>
+  <button class="save" id="save" type="button">Save image</button>
+  <div class="card" id="card">
+    <div class="modal-head" id="mHead">
+      <div><h2 id="mTitle"></h2></div>
+      <button class="close" id="close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="mBody"><div id="mText"></div><div class="byline" id="mBy"></div></div>
   </div>
-  <div class="modal-body" id="mBody"><div id="mText"></div><div class="byline" id="mBy"></div></div>
 </dialog>
 
 <script>
@@ -184,6 +191,76 @@ $('read').onclick = openPoem;
 $('clear').onclick = () => { $('poem').value = ''; $('num').value = ''; updateMeta(); $('poem').focus(); };
 $('poem').addEventListener('input', updateMeta);
 $('poem').addEventListener('paste', () => setTimeout(() => { updateMeta(); openPoem(); }, 250));
+
+/* ---- Save: renders ONLY the overlay card (no Save/close buttons) to a PNG ---- */
+function cssGrad(ctx, x, y, w, h, deg, stops){
+  const a = deg * Math.PI / 180, sx = Math.sin(a), sy = -Math.cos(a);
+  const len = Math.abs(w * sx) + Math.abs(h * sy);
+  const cx = x + w / 2, cy = y + h / 2;
+  const g = ctx.createLinearGradient(cx - sx * len / 2, cy - sy * len / 2, cx + sx * len / 2, cy + sy * len / 2);
+  stops.forEach(([p, c]) => g.addColorStop(p, c));
+  return g;
+}
+function rr(ctx, x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function drawText(ctx, el, ox, oy){
+  const cs = getComputedStyle(el);
+  ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  ctx.fillStyle = cs.color;
+  ctx.letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing;
+  ctx.textBaseline = 'middle';
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())){
+    const str = node.nodeValue, r = document.createRange();
+    let line = null;
+    const flush = () => { if (line && line.t.trim()) ctx.fillText(line.t.replace(/\s+$/, ''), line.x - ox, line.y - oy); line = null; };
+    for (let i = 0; i < str.length; i++){
+      if (str[i] === '\n') { flush(); continue; }
+      r.setStart(node, i); r.setEnd(node, i + 1);
+      const b = r.getClientRects()[0];
+      if (!b || (b.width === 0 && b.height === 0)) continue;
+      const y = b.top + b.height / 2;
+      if (line && Math.abs(y - line.y) > b.height / 2) flush();
+      if (!line) line = { t: '', x: b.left, y };
+      line.t += str[i];
+    }
+    flush();
+  }
+}
+async function saveCard(){
+  const btn = $('save'); btn.disabled = true;
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const card = $('card'), R = card.getBoundingClientRect();
+    const S = 3, W = R.width, H = R.height, rad = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
+    const cv = document.createElement('canvas'); cv.width = Math.round(W * S); cv.height = Math.round(H * S);
+    const ctx = cv.getContext('2d'); ctx.scale(S, S);
+    ctx.save(); rr(ctx, 0, 0, W, H, rad); ctx.clip();
+    const hr = $('mHead').getBoundingClientRect(), br = body.getBoundingClientRect();
+    ctx.fillStyle = cssGrad(ctx, 0, br.top - R.top, W, br.height, 150, [[0, '#212b11'], [1, '#141b0b']]);
+    ctx.fillRect(0, br.top - R.top, W, br.height);
+    ctx.fillStyle = cssGrad(ctx, 0, 0, W, hr.height, 135, [[0, '#0c1107'], [.55, '#1b200d'], [1, '#2c3016']]);
+    ctx.fillRect(0, 0, W, hr.height);
+    ctx.fillStyle = '#363819'; ctx.fillRect(0, hr.height - 1, W, 1);
+    if (!$('mTitle').hidden) drawText(ctx, $('mTitle'), R.left, R.top);
+    drawText(ctx, $('mText'), R.left, R.top);
+    drawText(ctx, $('mBy'), R.left, R.top);
+    ctx.restore();
+    ctx.strokeStyle = '#8a7a3e'; ctx.lineWidth = 1; rr(ctx, .5, .5, W - 1, H - 1, rad); ctx.stroke();
+    const blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
+    const n = parseInt($('num').value, 10);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'poem' + (n > 0 ? '-' + String(n).padStart(3, '0') : '') + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } finally { btn.disabled = false; }
+}
+$('save').onclick = saveCard;
 $('close').onclick = () => modal.close();
 modal.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
 window.addEventListener('resize', fit);
