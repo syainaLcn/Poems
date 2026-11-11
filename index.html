@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -234,20 +233,16 @@ function drawText(ctx, el, ox, oy){
 }
 async function saveCard(){
   const btn = $('save'); btn.disabled = true;
-  const SAVE_WIDTH = 0.8; /* saved image is 80% of the on-screen width; change this to adjust */
-  const w0 = modal.getBoundingClientRect(), keep = modal.getAttribute('style');
+  const S = 3, MARGIN = 6; /* MARGIN = thin dark border around the card in the saved image (px) */
   try {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    /* temporarily slim the card (hidden) so text re-fits, then restore */
-    modal.style.cssText += `;visibility:hidden;aspect-ratio:auto;width:${w0.width * SAVE_WIDTH}px;height:${w0.height}px`;
-    fit();
-    await new Promise((r) => requestAnimationFrame(r));
     const card = $('card'), R = card.getBoundingClientRect();
-    const S = 3, PAD = 32 /* space around the card in the saved image */, W = R.width, H = R.height, rad = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
-    const cv = document.createElement('canvas'); cv.width = Math.round((W + PAD * 2) * S); cv.height = Math.round((H + PAD * 2) * S);
+    const W = R.width, H = R.height, rad = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
+    const cv = document.createElement('canvas');
+    cv.width = Math.round((W + MARGIN * 2) * S); cv.height = Math.round((H + MARGIN * 2) * S);
     const ctx = cv.getContext('2d'); ctx.scale(S, S);
-    ctx.fillStyle = '#0c1107'; ctx.fillRect(0, 0, W + PAD * 2, H + PAD * 2); /* solid block behind the card */
-    ctx.translate(PAD, PAD);
+    ctx.fillStyle = '#0c1107'; ctx.fillRect(0, 0, W + MARGIN * 2, H + MARGIN * 2);
+    ctx.translate(MARGIN, MARGIN);
     ctx.save(); rr(ctx, 0, 0, W, H, rad); ctx.clip();
     const hr = $('mHead').getBoundingClientRect(), br = body.getBoundingClientRect();
     ctx.fillStyle = cssGrad(ctx, 0, br.top - R.top, W, br.height, 150, [[0, '#212b11'], [1, '#141b0b']]);
@@ -267,10 +262,7 @@ async function saveCard(){
     a.download = 'poem' + (n > 0 ? '-' + String(n).padStart(3, '0') : '') + '.png';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  } finally {
-    if (keep === null) modal.removeAttribute('style'); else modal.setAttribute('style', keep);
-    fit(); btn.disabled = false;
-  }
+  } finally { btn.disabled = false; }
 }
 $('save').onclick = saveCard;
 $('close').onclick = () => modal.close();
