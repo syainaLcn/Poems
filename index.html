@@ -63,10 +63,14 @@ dialog#modal[open]{display:block}
 .save{padding:9px 18px;border:1px solid #c9b87f;border-radius:24px;background:var(--grad-gold);color:var(--night-accent-ink);font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;box-shadow:0 4px 14px #0007}
 .save:hover{filter:brightness(1.1)}
 .save:disabled{opacity:.6;cursor:wait}
-.vmenu{display:none;flex-wrap:wrap;gap:6px;justify-content:flex-end;width:100%}
+.vmenu{display:none;flex-direction:column;gap:9px;align-items:flex-end;width:100%;padding:12px;background:#141b0bf2;border:1px solid #c9b87f;border-radius:16px;box-shadow:0 6px 20px #0008}
 .vmenu.show{display:flex}
-.vopt{padding:7px 14px;border:1px solid #c9b87f;border-radius:20px;background:#141b0b;color:#f4ecc9;font-size:12px;font-weight:600;cursor:pointer}
-.vopt:hover{background:#2c3016}
+.vrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center}
+.vlabel{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#b8ad7a;margin-right:4px}
+.vopt,.vchoice{padding:7px 14px;border:1px solid #c9b87f;border-radius:20px;background:#141b0b;color:#f4ecc9;font-size:12px;font-weight:600;cursor:pointer}
+.vopt:hover,.vchoice:hover{background:#2c3016}
+.vchoice.on{background:var(--grad-gold);color:var(--night-accent-ink);border-color:#e6d9a6}
+.vfile{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#c6c7aa}
 dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 .modal-head{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:15px;height:52px;padding:0 10px 0 20px;background:var(--grad-night);border-bottom:1px solid #363819;box-shadow:0 4px 15px #0005}
 .modal-head .eyebrow{font-size:10px;letter-spacing:.16em}
@@ -123,12 +127,25 @@ dialog#modal::backdrop{background:#050902cc;backdrop-filter:blur(2px)}
 <dialog id="modal">
   <div class="savebar">
     <div class="vmenu" id="vmenu">
-      <button class="vopt" data-s="10" type="button">10s</button>
-      <button class="vopt" data-s="15" type="button">15s</button>
-      <button class="vopt" data-s="20" type="button">20s</button>
-      <button class="vopt" data-s="30" type="button">30s</button>
-      <button class="vopt" data-s="45" type="button">45s</button>
-      <button class="vopt" data-s="60" type="button">1 min</button>
+      <div class="vrow"><span class="vlabel">Music</span>
+        <button class="vchoice on" data-g="music" data-v="none" type="button">None</button>
+        <button class="vchoice" data-g="music" data-v="ambient" type="button">Soft ambient</button>
+        <button class="vchoice" data-g="music" data-v="file" type="button">My song…</button>
+        <span class="vfile" id="vfile"></span>
+        <input type="file" id="mfile" accept="audio/*" hidden>
+      </div>
+      <div class="vrow"><span class="vlabel">Lyrics</span>
+        <button class="vchoice on" data-g="lyrics" data-v="line" type="button">With lyrics</button>
+        <button class="vchoice" data-g="lyrics" data-v="all" type="button">No lyrics</button>
+      </div>
+      <div class="vrow"><span class="vlabel">Record</span>
+        <button class="vopt" data-s="10" type="button">10s</button>
+        <button class="vopt" data-s="15" type="button">15s</button>
+        <button class="vopt" data-s="20" type="button">20s</button>
+        <button class="vopt" data-s="30" type="button">30s</button>
+        <button class="vopt" data-s="45" type="button">45s</button>
+        <button class="vopt" data-s="60" type="button">1 min</button>
+      </div>
     </div>
     <button class="save" id="saveVid" type="button">Save video</button>
     <button class="save" id="save" type="button">Save image</button>
@@ -223,7 +240,7 @@ function rr(ctx, x, y, w, h, r){
   ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
-function drawText(ctx, el, ox, oy){
+function drawText(ctx, el, ox, oy, lim){
   const cs = getComputedStyle(el);
   ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
   ctx.fillStyle = cs.color;
@@ -234,7 +251,7 @@ function drawText(ctx, el, ox, oy){
   while ((node = walker.nextNode())){
     const str = node.nodeValue, r = document.createRange();
     let line = null;
-    const flush = () => { if (line && line.t.trim()) ctx.fillText(line.t.replace(/\s+$/, ''), line.x - ox, line.y - oy); line = null; };
+    const flush = () => { if (line && line.t.trim() && (!lim || lim.left > 0)) { ctx.fillText(line.t.replace(/\s+$/, ''), line.x - ox, line.y - oy); if (lim) { lim.left--; lim.drawn++; } } line = null; };
     for (let i = 0; i < str.length; i++){
       if (str[i] === '\n') { flush(); continue; }
       r.setStart(node, i); r.setEnd(node, i + 1);
@@ -248,7 +265,7 @@ function drawText(ctx, el, ox, oy){
     flush();
   }
 }
-function buildCardCanvas(S){
+function buildCardCanvas(S, k){
   const MARGIN = 6;
   const card = $('card'), R = card.getBoundingClientRect();
   const W = R.width, H = R.height, rad = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
@@ -265,10 +282,12 @@ function buildCardCanvas(S){
   ctx.fillRect(0, 0, W, hr.height);
   ctx.fillStyle = '#363819'; ctx.fillRect(0, hr.height - 1, W, 1);
   if (!$('mTitle').hidden) drawText(ctx, $('mTitle'), R.left, R.top);
-  drawText(ctx, $('mText'), R.left, R.top);
+  const lim = { left: k == null ? Infinity : k, drawn: 0 };
+  drawText(ctx, $('mText'), R.left, R.top, lim);
   drawText(ctx, $('mBy'), R.left, R.top);
   ctx.restore();
   ctx.strokeStyle = '#8a7a3e'; ctx.lineWidth = 1; rr(ctx, .5, .5, W - 1, H - 1, rad); ctx.stroke();
+  cv.lines = lim.drawn;
   return cv;
 }
 function fileName(extra, ext){
@@ -291,26 +310,151 @@ async function saveCard(){
   } finally { btn.disabled = false; }
 }
 
-/* ---- Save video ---- */
+/* ---- Save video (music + lyrics) ---- */
+const vopts = { music: 'none', lyrics: 'line' };
+let musicFile = null;
+
+function ambientMusic(ac, out, sec){
+  const chords = [[110,164.81,220,261.63,329.63],[87.31,130.81,174.61,220,261.63],[130.81,196,261.63,329.63,392],[98,146.83,196,246.94,293.66]];
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+  const dl = ac.createDelay(1); dl.delayTime.value = .45;
+  const fb = ac.createGain(); fb.gain.value = .35;
+  lp.connect(out); lp.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(out);
+  const step = 8, t0 = ac.currentTime + .05;
+  for (let i = 0; i * step < sec + 4; i++){
+    const st = t0 + i * step;
+    chords[i % chords.length].forEach((f, j) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = j < 2 ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (j - 2) * 4;
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(.07, st + 2.5);
+      g.gain.linearRampToValueAtTime(.0001, st + step + 3);
+      o.connect(g); g.connect(lp); o.start(st); o.stop(st + step + 3.2);
+    });
+  }
+}
+
+async function setupAudio(sec){
+  if (vopts.music === 'none') return null;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  const ac = new AC();
+  if (ac.state === 'suspended') await ac.resume();
+  const dest = ac.createMediaStreamDestination();
+  const master = ac.createGain(), t = ac.currentTime;
+  master.gain.setValueAtTime(0, t);
+  master.gain.linearRampToValueAtTime(1, t + 1.5);
+  master.gain.setValueAtTime(1, t + Math.max(1.6, sec - 2));
+  master.gain.linearRampToValueAtTime(0, t + sec);
+  master.connect(dest);
+  if (vopts.music === 'ambient') {
+    ambientMusic(ac, master, sec);
+  } else if (musicFile) {
+    try {
+      const buf = await ac.decodeAudioData(await musicFile.arrayBuffer());
+      const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+      src.connect(master); src.start();
+    } catch (e) { alert('Hindi mabasa yung music file. Ituloy na lang na walang music.'); return null; }
+  } else return null;
+  return { ac, track: dest.stream.getAudioTracks()[0] };
+}
+
+/* ---- Intro / Outro cards ---- */
+const INTRO = 3, OUTRO = 3.4;
+const frac = (x) => x - Math.floor(x);
+const ease = (x) => { x = Math.max(0, Math.min(1, x)); return 1 - Math.pow(1 - x, 3); };
+const seg = (t, a, b) => ease((t - a) / (b - a));
+
+function fireflies(c, W, H, t, u){
+  for (let i = 0; i < 28; i++){
+    const r1 = frac(Math.sin(i * 12.9898) * 43758.5453);
+    const r2 = frac(Math.sin(i * 78.233) * 12345.678);
+    const r3 = frac(Math.sin(i * 39.346) * 24634.634);
+    const x = r1 * W + Math.sin(t * .6 + i) * 18 * u;
+    const y = (((r2 * H - t * (8 + r3 * 14) * u) % H) + H) % H;
+    const s = (1 + r3 * 2.2) * u;
+    const a = .2 + .8 * (.5 + .5 * Math.sin(t * 1.8 + i * 2.1));
+    const g = c.createRadialGradient(x, y, 0, x, y, s * 6);
+    g.addColorStop(0, `rgba(230,217,166,${a * .55})`);
+    g.addColorStop(1, 'rgba(230,217,166,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, s * 6, 0, 7); c.fill();
+    c.fillStyle = `rgba(255,246,205,${a})`; c.beginPath(); c.arc(x, y, s * .8, 0, 7); c.fill();
+  }
+}
+
+function titleCard(c, W, H, tg, tl, dur, kind, info){
+  const u = W / 600, cx = W / 2, cy = H / 2;
+  c.globalAlpha = 1; c.fillStyle = '#0c1107'; c.fillRect(0, 0, W, H);
+  c.globalAlpha = Math.max(0, Math.min(1, (dur - tl) / .8));
+  c.fillStyle = cssGrad(c, 0, 0, W, H, 135, [[0, '#0c1107'], [.55, '#1b200d'], [1, '#2c3016']]);
+  c.fillRect(0, 0, W, H);
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .6);
+  g.addColorStop(0, 'rgba(201,184,127,.17)'); g.addColorStop(1, 'rgba(201,184,127,0)');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  fireflies(c, W, H, tg, u);
+  const master = c.globalAlpha;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  const txt = (s, font, color, y, a, sp) => {
+    c.globalAlpha = master * a; c.font = font; c.fillStyle = color;
+    c.letterSpacing = (sp || 0) + 'px'; c.fillText(s, cx, y);
+  };
+  const line = (y, a, w) => {
+    c.globalAlpha = master * a; c.fillStyle = '#c9b87f';
+    c.fillRect(cx - w / 2, y, w, 2 * u);
+  };
+  const SERIF = '"Cormorant Garamond", Georgia, serif', UI = '"DM Sans", sans-serif';
+  if (kind === 'intro'){
+    const a1 = seg(tl, .3, 1.1), a2 = seg(tl, .1, 1.2), a3 = seg(tl, 1.4, 2.2);
+    txt(info.n > 0 ? 'POEM ' + String(info.n).padStart(3, '0') : 'A NEW PAGE', `700 ${11 * u}px ${UI}`, '#cdbf8c', cy - 62 * u, a1, 3 * u);
+    txt('Forest of Words', `italic 500 ${52 * u}px ${SERIF}`, '#f4ecc9', cy + (1 - a2) * 12 * u, a2, 0);
+    line(cy + 42 * u, 1, 64 * u * seg(tl, .9, 1.7));
+    txt('by ' + info.author, `italic 400 ${18 * u}px ${SERIF}`, '#c6c7aa', cy + 72 * u, a3, 0);
+  } else {
+    txt('— ' + info.author, `italic 500 ${34 * u}px "Playfair Display", ${SERIF}`, '#cdbf8c', cy - 30 * u, seg(tl, .3, 1.2), 0);
+    line(cy + 10 * u, 1, 64 * u * seg(tl, .9, 1.7));
+    txt('FOREST OF WORDS', `600 ${15 * u}px ${UI}`, '#efe9d0', cy + 46 * u, seg(tl, 1.1, 1.9), 4 * u);
+    txt('A POETRY COLLECTION', `500 ${10 * u}px ${UI}`, '#b8ad7a', cy + 72 * u, seg(tl, 1.5, 2.3), 3 * u);
+  }
+  c.globalAlpha = 1; c.textAlign = 'start'; c.letterSpacing = '0px';
+}
+
 async function saveVideo(sec){
   if (!window.MediaRecorder) { alert('Hindi supported ng browser na ito ang video recording.'); return; }
+  if (vopts.music === 'file' && !musicFile) { $('mfile').click(); return; }
   const vb = $('saveVid'), label = vb.textContent;
   vb.disabled = true; $('save').disabled = true; $('vmenu').classList.remove('show');
+  let audio = null;
+  const total = sec + INTRO + OUTRO;
+  const info = { author: ($('author').value.trim() || 'Shaina').toLowerCase(), n: parseInt($('num').value, 10) };
   try {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    const src = buildCardCanvas(2);
-    const W = src.width & ~1, H = src.height & ~1;
+    const lyrics = vopts.lyrics === 'line';
+    const full = buildCardCanvas(2);
+    const lines = full.lines;
+    let src = lyrics ? buildCardCanvas(2, 0) : full, shown = 0;
+    const W = full.width & ~1, H = full.height & ~1;
     const out = document.createElement('canvas'); out.width = W; out.height = H;
     const c = out.getContext('2d');
-    const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    audio = await setupAudio(total);
+    const types = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
     const mime = types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
-    const rec = new MediaRecorder(out.captureStream(30), mime ? { mimeType: mime, videoBitsPerSecond: 6000000 } : undefined);
+    const stream = out.captureStream(30);
+    if (audio) stream.addTrack(audio.track);
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 6000000 } : undefined);
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     const done = new Promise((res) => { rec.onstop = res; });
     const draw = (t) => {
-      const fade = Math.max(0, Math.min(1, t / 0.9, (sec - t) / 0.9));
-      const z = 0.97 + 0.03 * Math.min(1, t / sec);
+      if (t < INTRO) { titleCard(c, W, H, t, t, INTRO, 'intro', info); return; }
+      if (t >= INTRO + sec) { titleCard(c, W, H, t, t - INTRO - sec, OUTRO, 'outro', info); return; }
+      const tp = t - INTRO;
+      if (lyrics && lines) {
+        const p = Math.max(0, Math.min(1, (tp - .8) / Math.max(1, sec * .85 - .8)));
+        const k = Math.ceil(p * lines);
+        if (k !== shown) { shown = k; src = buildCardCanvas(2, k); }
+      }
+      const fade = Math.max(0, Math.min(1, tp / 0.9, (sec - tp) / 0.9));
+      const z = 0.97 + 0.03 * Math.min(1, tp / sec);
       c.globalAlpha = 1; c.fillStyle = '#0c1107'; c.fillRect(0, 0, W, H);
       c.save(); c.globalAlpha = fade; c.translate(W / 2, H / 2); c.scale(z, z);
       c.drawImage(src, -W / 2, -H / 2, W, H); c.restore();
@@ -320,8 +464,8 @@ async function saveVideo(sec){
     await new Promise((res) => {
       const tick = (now) => {
         const t = (now - t0) / 1000;
-        if (t >= sec) { res(); return; }
-        draw(t); vb.textContent = 'Recording… ' + Math.ceil(sec - t) + 's';
+        if (t >= total) { res(); return; }
+        draw(t); vb.textContent = 'Recording… ' + Math.ceil(total - t) + 's';
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -329,8 +473,23 @@ async function saveVideo(sec){
     rec.stop(); await done;
     const ext = (rec.mimeType || mime).includes('mp4') ? 'mp4' : 'webm';
     download(new Blob(chunks, { type: rec.mimeType || mime || 'video/webm' }), fileName('-' + sec + 's', ext));
-  } finally { vb.textContent = label; vb.disabled = false; $('save').disabled = false; }
+  } finally {
+    if (audio) audio.ac.close();
+    vb.textContent = label; vb.disabled = false; $('save').disabled = false;
+  }
 }
+
+document.querySelectorAll('.vchoice').forEach((b) => b.onclick = () => {
+  const g = b.dataset.g;
+  vopts[g] = b.dataset.v;
+  document.querySelectorAll('.vchoice[data-g="' + g + '"]').forEach((x) => x.classList.toggle('on', x === b));
+  if (g === 'music' && b.dataset.v === 'file') $('mfile').click();
+});
+$('mfile').onchange = (e) => {
+  const f = e.target.files[0];
+  if (f) { musicFile = f; $('vfile').textContent = f.name; }
+  else if (!musicFile) { vopts.music = 'none'; document.querySelectorAll('.vchoice[data-g="music"]').forEach((x) => x.classList.toggle('on', x.dataset.v === 'none')); }
+};
 
 $('save').onclick = saveCard;
 $('saveVid').onclick = () => $('vmenu').classList.toggle('show');
