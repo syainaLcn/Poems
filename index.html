@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -242,9 +243,11 @@ async function saveCard(){
     fit();
     await new Promise((r) => requestAnimationFrame(r));
     const card = $('card'), R = card.getBoundingClientRect();
-    const S = 3, W = R.width, H = R.height, rad = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
-    const cv = document.createElement('canvas'); cv.width = Math.round(W * S); cv.height = Math.round(H * S);
+    const S = 3, PAD = 32 /* space around the card in the saved image */, W = R.width, H = R.height, rad = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
+    const cv = document.createElement('canvas'); cv.width = Math.round((W + PAD * 2) * S); cv.height = Math.round((H + PAD * 2) * S);
     const ctx = cv.getContext('2d'); ctx.scale(S, S);
+    ctx.fillStyle = '#0c1107'; ctx.fillRect(0, 0, W + PAD * 2, H + PAD * 2); /* solid block behind the card */
+    ctx.translate(PAD, PAD);
     ctx.save(); rr(ctx, 0, 0, W, H, rad); ctx.clip();
     const hr = $('mHead').getBoundingClientRect(), br = body.getBoundingClientRect();
     ctx.fillStyle = cssGrad(ctx, 0, br.top - R.top, W, br.height, 150, [[0, '#212b11'], [1, '#141b0b']]);
